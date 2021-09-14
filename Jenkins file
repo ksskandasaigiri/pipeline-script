@@ -1,0 +1,69 @@
+pipeline{
+    agent any
+    stages{
+        stage('checkout from master code'){
+            steps{
+                git credentialsId: 'skanda-git', url: 'https://github.com/ksskandasaigiri/maven.git'
+            }
+        }
+        stage('build the mastercode'){
+            steps{
+                sh 'mvn package -f pom.xml'
+            }
+        }
+        stage('deployment'){
+            steps{
+                deploy adapters: [tomcat9(credentialsId: 'skanda-tomcat', path: '', url: 'http://34.125.251.46:8090/')], contextPath: null, war: 'target/titan.war'
+            }
+        }
+        stage('approval to move war to nexusrepo'){
+            steps{
+                echo "approval for the manager to move to nexus repo"
+                timeout(time: 9, unit: 'HOURS'){
+                    input message: 'Do you want to move to nexusrepo ?',submitter: 'skanda'
+                }
+            }
+        }
+        stage('Nexusupload'){
+            steps{
+                nexusArtifactUploader artifacts: [[artifactId: 'titan', classifier: '', file: 'target/titan.war', type: 'war']], credentialsId: 'nexus', groupId: 'com.devops', nexusUrl: '34.125.188.187:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'maven-snapshots', version: '1.0-SNAPSHOT'
+            }
+        }
+        stage('checkout from branch code'){
+            steps{
+                git branch: 'Release_0.11', credentialsId: 'skanda-git', url: 'https://github.com/ksskandasaigiri/maven.git'
+            }
+        }
+        stage('build the branch code'){
+            steps{
+                sh 'mvn package -f pom.xml'
+            }
+        }
+        stage('approval to deploy'){
+            steps{
+                echo "approval to deploy in tomcat"
+                timeout(time: 1, unit: 'HOURS'){
+                    input message: 'Do you want to deploy or not ?',submitter: 'skanda'
+                }
+            }
+        }
+        stage('deployment branch code'){
+            steps{
+                deploy adapters: [tomcat9(credentialsId: 'skanda-tomcat', path: '', url: 'http://34.125.251.46:8090/')], contextPath: null, war: 'target/Release_0.11.war'
+            }
+        }
+        stage('approval to move branch war to nexus'){
+            steps{
+                echo "approval to upload branch war to nexusrepo"
+                timeout(time: 2, unit: 'HOURS'){
+                    input message: 'Do you want to upload to nexus repo ?',submitter: 'skanda'
+                }
+            }
+        }
+        stage('upload into Nexus'){
+            steps{
+                nexusArtifactUploader artifacts: [[artifactId: 'Dev-GCP', classifier: '', file: 'target/Release_0.11.war', type: 'war']], credentialsId: 'nexus', groupId: 'com.skandasai', nexusUrl: '34.125.188.187:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'maven-snapshots', version: '1.0-SNAPSHOT'
+            }
+        }
+    }
+}
